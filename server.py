@@ -1,9 +1,10 @@
-
 #!/usr/bin/env python3
 from tornado.ncss import Server
 
+indexhtml = open("index.html").read()
+
 def index(response):
-	response.write("Welcome to Codenames")
+	response.write(indexhtml)
 
 def gamepage(response, name):
 	response.write("So you like to play " + name + "?")
