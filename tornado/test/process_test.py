@@ -13,16 +13,14 @@ from tornado.ioloop import IOLoop
 from tornado.log import gen_log
 from tornado.process import fork_processes, task_id, Subprocess
 from tornado.simple_httpclient import SimpleAsyncHTTPClient
-from tornado.testing import bind_unused_port, ExpectLog, AsyncTestCase, gen_test
+from tornado.testing import bind_unused_port, ExpectLog, AsyncTestCase
 from tornado.test.util import unittest, skipIfNonUnix
 from tornado.web import RequestHandler, Application
 
 
 def skip_if_twisted():
-    if IOLoop.configured_class().__name__.endswith(('TwistedIOLoop',
-                                                    'AsyncIOMainLoop')):
-        raise unittest.SkipTest("Process tests not compatible with "
-                                "TwistedIOLoop or AsyncIOMainLoop")
+    if IOLoop.configured_class().__name__.endswith('TwistedIOLoop'):
+        raise unittest.SkipTest("Process tests not compatible with TwistedIOLoop")
 
 # Not using AsyncHTTPTestCase because we need control over the IOLoop.
 
@@ -85,7 +83,7 @@ class ProcessTest(unittest.TestCase):
                     self.assertEqual(id, task_id())
                     server = HTTPServer(self.get_app())
                     server.add_sockets([sock])
-                    IOLoop.current().start()
+                    IOLoop.instance().start()
                 elif id == 2:
                     self.assertEqual(id, task_id())
                     sock.close()
@@ -137,14 +135,6 @@ class ProcessTest(unittest.TestCase):
 @skipIfNonUnix
 class SubprocessTest(AsyncTestCase):
     def test_subprocess(self):
-        if IOLoop.configured_class().__name__.endswith('LayeredTwistedIOLoop'):
-            # This test fails non-deterministically with LayeredTwistedIOLoop.
-            # (the read_until('\n') returns '\n' instead of 'hello\n')
-            # This probably indicates a problem with either TornadoReactor
-            # or TwistedIOLoop, but I haven't been able to track it down
-            # and for now this is just causing spurious travis-ci failures.
-            raise unittest.SkipTest("Subprocess tests not compatible with "
-                                    "LayeredTwistedIOLoop")
         subproc = Subprocess([sys.executable, '-u', '-i'],
                              stdin=Subprocess.STREAM,
                              stdout=Subprocess.STREAM, stderr=subprocess.STDOUT,
@@ -200,16 +190,6 @@ class SubprocessTest(AsyncTestCase):
         self.assertEqual(ret, 0)
         self.assertEqual(subproc.returncode, ret)
 
-    @gen_test
-    def test_sigchild_future(self):
-        skip_if_twisted()
-        Subprocess.initialize()
-        self.addCleanup(Subprocess.uninitialize)
-        subproc = Subprocess([sys.executable, '-c', 'pass'])
-        ret = yield subproc.wait_for_exit()
-        self.assertEqual(ret, 0)
-        self.assertEqual(subproc.returncode, ret)
-
     def test_sigchild_signal(self):
         skip_if_twisted()
         Subprocess.initialize(io_loop=self.io_loop)
@@ -222,22 +202,3 @@ class SubprocessTest(AsyncTestCase):
         ret = self.wait()
         self.assertEqual(subproc.returncode, ret)
         self.assertEqual(ret, -signal.SIGTERM)
-
-    @gen_test
-    def test_wait_for_exit_raise(self):
-        skip_if_twisted()
-        Subprocess.initialize()
-        self.addCleanup(Subprocess.uninitialize)
-        subproc = Subprocess([sys.executable, '-c', 'import sys; sys.exit(1)'])
-        with self.assertRaises(subprocess.CalledProcessError) as cm:
-            yield subproc.wait_for_exit()
-        self.assertEqual(cm.exception.returncode, 1)
-
-    @gen_test
-    def test_wait_for_exit_raise_disabled(self):
-        skip_if_twisted()
-        Subprocess.initialize()
-        self.addCleanup(Subprocess.uninitialize)
-        subproc = Subprocess([sys.executable, '-c', 'import sys; sys.exit(1)'])
-        ret = yield subproc.wait_for_exit(raise_error=False)
-        self.assertEqual(ret, 1)

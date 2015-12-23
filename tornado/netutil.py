@@ -20,98 +20,18 @@ from __future__ import absolute_import, division, print_function, with_statement
 
 import errno
 import os
-import sys
+import re
 import socket
+import ssl
 import stat
 
 from tornado.concurrent import dummy_executor, run_on_executor
 from tornado.ioloop import IOLoop
 from tornado.platform.auto import set_close_exec
-from tornado.util import u, Configurable, errno_from_exception
-
-try:
-    import ssl
-except ImportError:
-    # ssl is not available on Google App Engine
-    ssl = None
-
-try:
-    import certifi
-except ImportError:
-    # certifi is optional as long as we have ssl.create_default_context.
-    if ssl is None or hasattr(ssl, 'create_default_context'):
-        certifi = None
-    else:
-        raise
-
-try:
-    xrange  # py2
-except NameError:
-    xrange = range  # py3
-
-if hasattr(ssl, 'match_hostname') and hasattr(ssl, 'CertificateError'):  # python 3.2+
-    ssl_match_hostname = ssl.match_hostname
-    SSLCertificateError = ssl.CertificateError
-elif ssl is None:
-    ssl_match_hostname = SSLCertificateError = None
-else:
-    import backports.ssl_match_hostname
-    ssl_match_hostname = backports.ssl_match_hostname.match_hostname
-    SSLCertificateError = backports.ssl_match_hostname.CertificateError
-
-if hasattr(ssl, 'SSLContext'):
-    if hasattr(ssl, 'create_default_context'):
-        # Python 2.7.9+, 3.4+
-        # Note that the naming of ssl.Purpose is confusing; the purpose
-        # of a context is to authentiate the opposite side of the connection.
-        _client_ssl_defaults = ssl.create_default_context(
-            ssl.Purpose.SERVER_AUTH)
-        _server_ssl_defaults = ssl.create_default_context(
-            ssl.Purpose.CLIENT_AUTH)
-    else:
-        # Python 3.2-3.3
-        _client_ssl_defaults = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        _client_ssl_defaults.verify_mode = ssl.CERT_REQUIRED
-        _client_ssl_defaults.load_verify_locations(certifi.where())
-        _server_ssl_defaults = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        if hasattr(ssl, 'OP_NO_COMPRESSION'):
-            # Disable TLS compression to avoid CRIME and related attacks.
-            # This constant wasn't added until python 3.3.
-            _client_ssl_defaults.options |= ssl.OP_NO_COMPRESSION
-            _server_ssl_defaults.options |= ssl.OP_NO_COMPRESSION
-
-elif ssl:
-    # Python 2.6-2.7.8
-    _client_ssl_defaults = dict(cert_reqs=ssl.CERT_REQUIRED,
-                                ca_certs=certifi.where())
-    _server_ssl_defaults = {}
-else:
-    # Google App Engine
-    _client_ssl_defaults = dict(cert_reqs=None,
-                                ca_certs=None)
-    _server_ssl_defaults = {}
-
-# ThreadedResolver runs getaddrinfo on a thread. If the hostname is unicode,
-# getaddrinfo attempts to import encodings.idna. If this is done at
-# module-import time, the import lock is already held by the main thread,
-# leading to deadlock. Avoid it by caching the idna encoder on the main
-# thread now.
-u('foo').encode('idna')
-
-# These errnos indicate that a non-blocking operation must be retried
-# at a later time.  On most platforms they're the same value, but on
-# some they differ.
-_ERRNO_WOULDBLOCK = (errno.EWOULDBLOCK, errno.EAGAIN)
-
-if hasattr(errno, "WSAEWOULDBLOCK"):
-    _ERRNO_WOULDBLOCK += (errno.WSAEWOULDBLOCK,)
-
-# Default backlog used when calling sock.listen()
-_DEFAULT_BACKLOG = 128
+from tornado.util import Configurable
 
 
-def bind_sockets(port, address=None, family=socket.AF_UNSPEC,
-                 backlog=_DEFAULT_BACKLOG, flags=None, reuse_port=False):
+def bind_sockets(port, address=None, family=socket.AF_UNSPEC, backlog=128, flags=None):
     """Creates listening sockets bound to the given port and address.
 
     Returns a list of socket objects (multiple sockets are returned if
@@ -130,14 +50,7 @@ def bind_sockets(port, address=None, family=socket.AF_UNSPEC,
 
     ``flags`` is a bitmask of AI_* flags to `~socket.getaddrinfo`, like
     ``socket.AI_PASSIVE | socket.AI_NUMERICHOST``.
-
-    ``resuse_port`` option sets ``SO_REUSEPORT`` option for every socket
-    in the list. If your platform doesn't support this option ValueError will
-    be raised.
     """
-    if reuse_port and not hasattr(socket, "SO_REUSEPORT"):
-        raise ValueError("the platform doesn't support SO_REUSEPORT")
-
     sockets = []
     if address == "":
         address = None
@@ -150,30 +63,18 @@ def bind_sockets(port, address=None, family=socket.AF_UNSPEC,
         family = socket.AF_INET
     if flags is None:
         flags = socket.AI_PASSIVE
-    bound_port = None
     for res in set(socket.getaddrinfo(address, port, family, socket.SOCK_STREAM,
                                       0, flags)):
         af, socktype, proto, canonname, sockaddr = res
-        if (sys.platform == 'darwin' and address == 'localhost' and
-                af == socket.AF_INET6 and sockaddr[3] != 0):
-            # Mac OS X includes a link-local address fe80::1%lo0 in the
-            # getaddrinfo results for 'localhost'.  However, the firewall
-            # doesn't understand that this is a local address and will
-            # prompt for access (often repeatedly, due to an apparent
-            # bug in its ability to remember granting access to an
-            # application). Skip these addresses.
-            continue
         try:
             sock = socket.socket(af, socktype, proto)
         except socket.error as e:
-            if errno_from_exception(e) == errno.EAFNOSUPPORT:
+            if e.args[0] == errno.EAFNOSUPPORT:
                 continue
             raise
         set_close_exec(sock.fileno())
         if os.name != 'nt':
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if reuse_port:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         if af == socket.AF_INET6:
             # On linux, ipv6 sockets accept ipv4 too by default,
             # but this makes it impossible to bind to both
@@ -185,22 +86,14 @@ def bind_sockets(port, address=None, family=socket.AF_UNSPEC,
             # Python 2.x on windows doesn't have IPPROTO_IPV6.
             if hasattr(socket, "IPPROTO_IPV6"):
                 sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-
-        # automatic port allocation with port=None
-        # should bind on the same port on IPv4 and IPv6
-        host, requested_port = sockaddr[:2]
-        if requested_port == 0 and bound_port is not None:
-            sockaddr = tuple([host, bound_port] + list(sockaddr[2:]))
-
         sock.setblocking(0)
         sock.bind(sockaddr)
-        bound_port = sock.getsockname()[1]
         sock.listen(backlog)
         sockets.append(sock)
     return sockets
 
 if hasattr(socket, 'AF_UNIX'):
-    def bind_unix_socket(file, mode=0o600, backlog=_DEFAULT_BACKLOG):
+    def bind_unix_socket(file, mode=0o600, backlog=128):
         """Creates a listening unix socket.
 
         If a socket with the given name already exists, it will be deleted.
@@ -217,7 +110,7 @@ if hasattr(socket, 'AF_UNIX'):
         try:
             st = os.stat(file)
         except OSError as err:
-            if errno_from_exception(err) != errno.ENOENT:
+            if err.errno != errno.ENOENT:
                 raise
         else:
             if stat.S_ISSOCK(st.st_mode):
@@ -238,41 +131,27 @@ def add_accept_handler(sock, callback, io_loop=None):
     address of the other end of the connection).  Note that this signature
     is different from the ``callback(fd, events)`` signature used for
     `.IOLoop` handlers.
-
-    .. versionchanged:: 4.1
-       The ``io_loop`` argument is deprecated.
     """
     if io_loop is None:
         io_loop = IOLoop.current()
 
     def accept_handler(fd, events):
-        # More connections may come in while we're handling callbacks;
-        # to prevent starvation of other tasks we must limit the number
-        # of connections we accept at a time.  Ideally we would accept
-        # up to the number of connections that were waiting when we
-        # entered this method, but this information is not available
-        # (and rearranging this method to call accept() as many times
-        # as possible before running any callbacks would have adverse
-        # effects on load balancing in multiprocess configurations).
-        # Instead, we use the (default) listen backlog as a rough
-        # heuristic for the number of connections we can reasonably
-        # accept at once.
-        for i in xrange(_DEFAULT_BACKLOG):
+        while True:
             try:
                 connection, address = sock.accept()
             except socket.error as e:
-                # _ERRNO_WOULDBLOCK indicate we have accepted every
+                # EWOULDBLOCK and EAGAIN indicate we have accepted every
                 # connection that is available.
-                if errno_from_exception(e) in _ERRNO_WOULDBLOCK:
+                if e.args[0] in (errno.EWOULDBLOCK, errno.EAGAIN):
                     return
                 # ECONNABORTED indicates that there was a connection
                 # but it was closed while still in the accept queue.
                 # (observed on FreeBSD).
-                if errno_from_exception(e) == errno.ECONNABORTED:
+                if e.args[0] == errno.ECONNABORTED:
                     continue
                 raise
             callback(connection, address)
-    io_loop.add_handler(sock, accept_handler, IOLoop.READ)
+    io_loop.add_handler(sock.fileno(), accept_handler, IOLoop.READ)
 
 
 def is_valid_ip(ip):
@@ -280,10 +159,6 @@ def is_valid_ip(ip):
 
     Supports IPv4 and IPv6.
     """
-    if not ip or '\x00' in ip:
-        # getaddrinfo resolves empty strings to localhost, and truncates
-        # on zero bytes.
-        return False
     try:
         res = socket.getaddrinfo(ip, 0, socket.AF_UNSPEC,
                                  socket.SOCK_STREAM,
@@ -355,9 +230,6 @@ class ExecutorResolver(Resolver):
     The executor will be shut down when the resolver is closed unless
     ``close_resolver=False``; use this if you want to reuse the same
     executor elsewhere.
-
-    .. versionchanged:: 4.1
-       The ``io_loop`` argument is deprecated.
     """
     def initialize(self, io_loop=None, executor=None, close_executor=True):
         self.io_loop = io_loop or IOLoop.current()
@@ -470,7 +342,7 @@ def ssl_options_to_context(ssl_options):
     `~ssl.SSLContext` object.
 
     The ``ssl_options`` dictionary contains keywords to be passed to
-    `ssl.wrap_socket`.  In Python 2.7.9+, `ssl.SSLContext` objects can
+    `ssl.wrap_socket`.  In Python 3.2+, `ssl.SSLContext` objects can
     be used instead.  This function converts the dict form to its
     `~ssl.SSLContext` equivalent, and may be used when a component which
     accepts both forms needs to upgrade to the `~ssl.SSLContext` version
@@ -491,21 +363,17 @@ def ssl_options_to_context(ssl_options):
         context.load_verify_locations(ssl_options['ca_certs'])
     if 'ciphers' in ssl_options:
         context.set_ciphers(ssl_options['ciphers'])
-    if hasattr(ssl, 'OP_NO_COMPRESSION'):
-        # Disable TLS compression to avoid CRIME and related attacks.
-        # This constant wasn't added until python 3.3.
-        context.options |= ssl.OP_NO_COMPRESSION
     return context
 
 
 def ssl_wrap_socket(socket, ssl_options, server_hostname=None, **kwargs):
     """Returns an ``ssl.SSLSocket`` wrapping the given socket.
 
-    ``ssl_options`` may be either an `ssl.SSLContext` object or a
-    dictionary (as accepted by `ssl_options_to_context`).  Additional
-    keyword arguments are passed to ``wrap_socket`` (either the
-    `~ssl.SSLContext` method or the `ssl` module function as
-    appropriate).
+    ``ssl_options`` may be either a dictionary (as accepted by
+    `ssl_options_to_context`) or an `ssl.SSLContext` object.
+    Additional keyword arguments are passed to ``wrap_socket``
+    (either the `~ssl.SSLContext` method or the `ssl` module function
+    as appropriate).
     """
     context = ssl_options_to_context(ssl_options)
     if hasattr(ssl, 'SSLContext') and isinstance(context, ssl.SSLContext):
@@ -519,3 +387,73 @@ def ssl_wrap_socket(socket, ssl_options, server_hostname=None, **kwargs):
             return context.wrap_socket(socket, **kwargs)
     else:
         return ssl.wrap_socket(socket, **dict(context, **kwargs))
+
+if hasattr(ssl, 'match_hostname') and hasattr(ssl, 'CertificateError'):  # python 3.2+
+    ssl_match_hostname = ssl.match_hostname
+    SSLCertificateError = ssl.CertificateError
+else:
+    # match_hostname was added to the standard library ssl module in python 3.2.
+    # The following code was backported for older releases and copied from
+    # https://bitbucket.org/brandon/backports.ssl_match_hostname
+    class SSLCertificateError(ValueError):
+        pass
+
+    def _dnsname_to_pat(dn, max_wildcards=1):
+        pats = []
+        for frag in dn.split(r'.'):
+            if frag.count('*') > max_wildcards:
+                # Issue #17980: avoid denials of service by refusing more
+                # than one wildcard per fragment.  A survery of established
+                # policy among SSL implementations showed it to be a
+                # reasonable choice.
+                raise SSLCertificateError(
+                    "too many wildcards in certificate DNS name: " + repr(dn))
+            if frag == '*':
+                # When '*' is a fragment by itself, it matches a non-empty dotless
+                # fragment.
+                pats.append('[^.]+')
+            else:
+                # Otherwise, '*' matches any dotless fragment.
+                frag = re.escape(frag)
+                pats.append(frag.replace(r'\*', '[^.]*'))
+        return re.compile(r'\A' + r'\.'.join(pats) + r'\Z', re.IGNORECASE)
+
+    def ssl_match_hostname(cert, hostname):
+        """Verify that *cert* (in decoded format as returned by
+        SSLSocket.getpeercert()) matches the *hostname*.  RFC 2818 rules
+        are mostly followed, but IP addresses are not accepted for *hostname*.
+
+        CertificateError is raised on failure. On success, the function
+        returns nothing.
+        """
+        if not cert:
+            raise ValueError("empty or no certificate")
+        dnsnames = []
+        san = cert.get('subjectAltName', ())
+        for key, value in san:
+            if key == 'DNS':
+                if _dnsname_to_pat(value).match(hostname):
+                    return
+                dnsnames.append(value)
+        if not dnsnames:
+            # The subject is only checked when there is no dNSName entry
+            # in subjectAltName
+            for sub in cert.get('subject', ()):
+                for key, value in sub:
+                    # XXX according to RFC 2818, the most specific Common Name
+                    # must be used.
+                    if key == 'commonName':
+                        if _dnsname_to_pat(value).match(hostname):
+                            return
+                        dnsnames.append(value)
+        if len(dnsnames) > 1:
+            raise SSLCertificateError("hostname %r "
+                                      "doesn't match either of %s"
+                                      % (hostname, ', '.join(map(repr, dnsnames))))
+        elif len(dnsnames) == 1:
+            raise SSLCertificateError("hostname %r "
+                                      "doesn't match %r"
+                                      % (hostname, dnsnames[0]))
+        else:
+            raise SSLCertificateError("no appropriate commonName or "
+                                      "subjectAltName fields were found")

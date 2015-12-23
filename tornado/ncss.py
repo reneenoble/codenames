@@ -45,7 +45,7 @@ for logger in (tornado.log.access_log, tornado.log.app_log, tornado.log.gen_log,
 
 
 class Server:
-    __slots__ = ('cookie_secret', 'default_handler', 'handlers', 'hostname', 'port', 'static_path')
+    __slots__ = ('handlers', 'hostname', 'port', 'static_path')
 
     def __init__(self, *, hostname='', port=8888, static_path='static'):
         if type(hostname) is not str:
@@ -59,8 +59,6 @@ class Server:
         self.port = port
         self.static_path = static_path
         self.handlers = []
-        self.cookie_secret = None
-        self.default_handler = None
 
     def register(self, url_pattern, handler, *, delete=None, get=None, patch=None, post=None, put=None, url_name=None, write_error=None, **kwargs):
         if type(url_pattern) is not str:
@@ -77,13 +75,13 @@ class Server:
 
             class Handler(tornado.web.RequestHandler):
                 def delete(self, *args, **kwargs):
-                    return delete_handler(self, *args, **kwargs)
+                    delete_handler(self, *args, **kwargs)
 
                 def get(self, *args, **kwargs):
-                    return get_handler(self, *args, **kwargs)
+                    get_handler(self, *args, **kwargs)
 
                 def patch(self, *args, **kwargs):
-                    return patch_handler(self, *args, **kwargs)
+                    patch_handler(self, *args, **kwargs)
 
                 def post(self, *args, **kwargs):
                     method = self.get_field('_method', '').lower()
@@ -93,11 +91,10 @@ class Server:
                         return self.patch(*args, **kwargs)
                     elif method == 'put':
                         return self.put(*args, **kwargs)
-                    else:
-                        return post_handler(self, *args, **kwargs)
+                    post_handler(self, *args, **kwargs)
 
                 def put(self, *args, **kwargs):
-                    return put_handler(self, *args, **kwargs)
+                    put_handler(self, *args, **kwargs)
 
                 def get_field(self, name, default=None, strip=True):
                     return self.get_argument(name, default, strip=strip)  # Normally raises a MissingArgumentError if the default value is not specified.
@@ -134,61 +131,26 @@ class Server:
         url_spec = tornado.web.URLSpec(url_pattern, h, name=url_name)
         self.handlers.append(url_spec)
 
-    def set_cookie_secret(self, cookie_secret):
-        self.cookie_secret = cookie_secret
+    def app(self):
+        # Randomise the cookie secret upon reload.
+        m = hashlib.md5()
+        m.update((str(random.random()) + str(random.random())).encode('utf-8'))
+        cookie_secret = m.digest()
 
-    def set_default_handler(self, default_handler):
-        self.default_handler = default_handler
+        # Create the app in debug mode (autoreload)
+        app = tornado.web.Application(self.handlers, static_path=self.static_path, cookie_secret=cookie_secret, debug=True)
+        return app
 
-    def run(self):
-        # Randomise the cookie secret upon reload if it's not already set.
-        if self.cookie_secret is None:
-            m = hashlib.md5()
-            m.update((str(random.random()) + str(random.random())).encode('utf-8'))
-            cookie_secret = m.digest()
-        else:
-            cookie_secret = self.cookie_secret
-
-        # Create a default handler if the user wants one.
-        me = self
-        if self.default_handler is not None:
-            class default_handler_class(tornado.web.RequestHandler):
-                def delete(self, *args, **kwargs):
-                    return me.default_handler(self, 'delete', *args, **kwargs)
-
-                def get(self, *args, **kwargs):
-                    return me.default_handler(self, 'get', *args, **kwargs)
-
-                def patch(self, *args, **kwargs):
-                    return me.default_handler(self, 'patch', *args, **kwargs)
-
-                def post(self, *args, **kwargs):
-                    method = self.get_field('_method', '').lower()
-                    if method == 'delete':
-                        return self.delete(*args, **kwargs)
-                    elif method == 'patch':
-                        return self.patch(*args, **kwargs)
-                    elif method == 'put':
-                        return self.put(*args, **kwargs)
-                    else:
-                        return me.default_handler(self, 'post', *args, **kwargs)
-
-                def put(self, *args, **kwargs):
-                    return me.default_handler(self, 'put', *args, **kwargs)
-        else:
-            default_handler_class = None
-
-        # Create the app in debug mode (autoreload), binding to the appropriate address.
-        app = tornado.web.Application(
-            self.handlers,
-            cookie_secret=cookie_secret,
-            debug=True,
-            default_handler_class=default_handler_class,
-            static_path=self.static_path,
-        )
+    def loop(self):
+        # Initialise the app, binding to the appropriate address.
+        app = self.app()
         app.listen(port=self.port, address=self.hostname)
         ncssbook_log.info('Reloading... waiting for requests on http://{}:{}'.format(self.hostname or 'localhost', self.port))
-
-        # Start the ioloop.
+        
+        # Create the ioloop.
         loop = tornado.ioloop.IOLoop.instance()
+        return loop
+    
+    def run(self):
+        loop = self.loop()
         loop.start()

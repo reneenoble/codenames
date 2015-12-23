@@ -15,8 +15,7 @@ class Waker(interface.Waker):
     and Jython.
     """
     def __init__(self):
-        # Based on Zope select_trigger.py:
-        # https://github.com/zopefoundation/Zope/blob/master/src/ZServer/medusa/thread/select_trigger.py
+        # Based on Zope async.py: http://svn.zope.org/zc.ngi/trunk/src/zc/ngi/async.py
 
         self.writer = socket.socket()
         # Disable buffering -- pulling the trigger sends 1 byte,
