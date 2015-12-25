@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import sqlite3
 from tornado.ncss import Server
+from tornado.template import Loader
 
+loader = Loader(".")
 
 
 conn = sqlite3.connect('codenames.db', isolation_level=None)
@@ -21,8 +23,8 @@ def add_name(name):
 	conn.execute("INSERT INTO players VALUES (?)", (name,))
 
 def index(response):
-	indexhtml = open("index.html").read()
-	response.write(indexhtml.format(", ".join(get_names())))
+	indexhtml = loader.load("index.html")
+	response.write(indexhtml.generate(names=get_names()))
 
 def game_page(response, name):
 	response.write("So you like to play " + name + "?")

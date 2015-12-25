@@ -5,7 +5,12 @@
 
   <body>
     <h1>This is Codenames!</h1>
-    <p>This is a fun game, these are the people who think so: {}
+    <p>This is a fun game, these are the people who think so: 
+      <ul>
+        {% for name in names %} 
+          <li>{{ name }}</li> 
+        {% end %}
+      </ul>
     </p>
 
     <h1>Do you think it's fun too? Enter your name too our list</h1>
