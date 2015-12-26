@@ -4,7 +4,13 @@
   </head>  
 
   <body>
-    <h1>This is Codenames!</h1>
+    <h1>Codenames!</h1>
+    <h2>Login or Register to play Codenames</h2>
+    <form method="POST">
+      Username: <input type="text" name="username">
+      <input type="submit" value="Submit">
+    </form>
+
     <p>This is a fun game, these are the people who think so: 
       <ul>
         {% for name in names %} 
@@ -13,10 +19,12 @@
       </ul>
     </p>
 
-    <h1>Do you think it's fun too? Enter your name too our list</h1>
+    <!--h1>Do you think it's fun too? Enter your name too our list</h1>
     <form method="POST">
     Name: <input type="text" name="name">
     <input type="submit" value="Submit">
-    </form>  
+    </form-->  
+
+    <img src="/static/images/nyan.PNG">
   </body>
 </html>
