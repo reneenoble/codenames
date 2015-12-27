@@ -1,0 +1,19 @@
+<html>
+<head>
+	<title>Play a Game</title>
+</head>
+
+<body>
+	<h1>Welcome to Codenames {{username}}! Let's start playing!</h2>
+	<h2>Start a new game or join an existing game<h2>
+	<h3>Join a game</h3>
+	<form method="POST" action="/game/join">
+      Room Code: <input type="text" name="roomcode">
+      <input type="submit" value="Submit">
+    </form>
+    <h3>Create a game</h3>
+    <form method="POST" action="/game/create">
+      <input type="submit" value="Submit">
+    </form>
+
+</body>
