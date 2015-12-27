@@ -20,9 +20,9 @@ def game(response):
 	gamehtml = loader.load("game.html")
 	response.write(gamehtml.generate(username=get_user(response)))
 
-def lobby(response):
+def lobby(response, roomcode):
 	lobbyhtml = loader.load("lobby.html")
-	response.write(lobbyhtml.generate(players=get_game_players(code)))
+	response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
 
 def game_page(response, name):
 	response.write("So you like to play " + name + "?")
@@ -35,24 +35,19 @@ def add_name_page(response):
 def login_page(response):
 	username = response.get_field("username")
 	user_exists = db.user_exists(username)
-	print("printing1", user_exists)
 	if user_exists:
 		player_id = db.get_player_id(username)
-		print(username, type(player_id))
 		login(response, username, player_id)
 	else:
 		response.redirect("/")
 
 def login(response, username, player_id):
-	print("XXXXXXXXXXXXXXXXXXXXXXXXX")
 	response.set_secure_cookie("username", username) 
 	response.set_secure_cookie("player_id", str(player_id))
 	response.redirect("/game")
 
 def register_user(response):
 	username = response.get_field("username")
-	print 
-	#name = response.get_filed("name")
 	if not db.user_exists(username):
 		player_id = db.add_player(username)
 		login(response, username, player_id)
@@ -62,16 +57,12 @@ def get_user(response):
 	return username
 
 def create_game(response):
-	print("game created!")
 	code_in_use = True
 	while code_in_use:
 		#create a roomcode, 
 		code = randomword(4)
-		print(code)
 		#check if code is in use
 		code_in_use = db.room_code_in_use(code)
-		print(code_in_use)
-	print(code)
 	#add it to the database of room codes
 	game_id = db.create_game(code)
 	#add the player to the games_players table for this room redirect to the lobby for the room code
@@ -90,12 +81,14 @@ def join_lobby(response, roomcode):
 		player_id = get_player_id_cookies(response)
 		db.add_game_player(game_id, player_id)
 		#redirect to lobby page
+		response.redirect("/lobby/" + roomcode)
 	elif state == "playing":
 		#The game in this room has already started. 
 		print("The game in this room has already started. ")
 	else:
 		#You must either have the wring room code or the game you want has already finished
-		print("You must either have the wring room code or the game you want has already finished")
+		print("You must either have the wrong room code or the game you want has already finished")
+
 def randomword(length):
 	return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(length))
 
@@ -110,7 +103,7 @@ server.register("/login", login_page)
 server.register("/game", game, post=game)
 server.register("/game/create", create_game)
 server.register("/game/join", join_game)
-server.register("/lobby/([A-Z]+)", game_page)
+server.register("/lobby/([a-z]+)", lobby)
 
 db.init()
 

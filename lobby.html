@@ -1,0 +1,15 @@
+<html>
+	<head>
+		<title>Lobby for Game {{code}}</title>
+	</head>
+	<body>
+		<h1>Welcome to the lobby!
+			Room Code: {{code}}
+		</h1>
+		<h2>The players already in the lobby are:</h2>
+		<ul>
+        {% for player in game_players %} 
+          <li>{{ player }}</li> 
+        {% end %}
+      </ul>
+	</body>	
