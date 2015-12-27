@@ -6,7 +6,8 @@
   <body>
     <h1>Codenames!</h1>
     <h2>Login or Register to play Codenames</h2>
-    <form method="POST">
+    <h3>Login</h3>
+    <form method="POST" action="/login">
       Username: <input type="text" name="username">
       <input type="submit" value="Submit">
     </form>
@@ -18,6 +19,12 @@
         {% end %}
       </ul>
     </p>
+
+    <h3>Register</h3>
+    <form method="POST" action="/register">
+      Username: <input type="text" name="username">
+      <input type="submit" value="Submit">
+    </form>
 
     <!--h1>Do you think it's fun too? Enter your name too our list</h1>
     <form method="POST">
