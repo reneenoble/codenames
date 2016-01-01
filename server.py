@@ -21,8 +21,13 @@ def game(response):
 	response.write(gamehtml.generate(username=get_user(response)))
 
 def lobby(response, roomcode):
-	lobbyhtml = loader.load("lobby.html")
-	response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
+	in_game = player_in_game(response, roomcode)
+	print(in_game)
+	if in_game:
+		lobbyhtml = loader.load("lobby.html")
+		response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
+	else:
+		response.redirect("/game")
 
 def game_page(response, name):
 	response.write("So you like to play " + name + "?")
@@ -89,11 +94,35 @@ def join_lobby(response, roomcode):
 		#You must either have the wring room code or the game you want has already finished
 		print("You must either have the wrong room code or the game you want has already finished")
 
+def start_game(response, roomcode):
+	#If player in game
+	if player_in_game(response, roomcode):
+	#If game already started go to the game board
+		if game_started(roomcode):
+
+			#Otherwise start game
+			#change game state to playing
+			
+			#assign players randomly to teams and to spymaster
+			assign_teams_and_roles(roomcode)
+			#choose words for the game
+			#redirect to the game board
+		else:
+			response.redirect("game/play/roomcode")
+
+	else:
+		response.redirect("/game")
+
 def randomword(length):
 	return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(length))
 
 def get_player_id_cookies(response):
 	return int(response.get_secure_cookie("player_id"))
+
+def player_in_game(response, roomcode):
+	player_id = get_player_id_cookies(response)
+	in_game = db.player_in_game(player_id, roomcode)
+	return in_game
 
 server = Server()
 #server.register("/", index, post=add_name_page)
