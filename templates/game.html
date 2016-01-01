@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Codenames - {{ code }}</title>
+  </head>
+  <body>
+    <h1>Codenames</h1>
+    <ul>
+      {% for codename in codenames %}
+        <li>{{ codename }}</li>
+      {% end %}
+    </ul>
+  </body>
+</html>
