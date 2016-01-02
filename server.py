@@ -8,60 +8,48 @@ import string
 loader = Loader(".")
 #loader = Loader("./templates")
 
-def index(response):
+def index_page(response):
   indexhtml = loader.load("index.html")
   response.write(indexhtml.generate(names=db.get_names()))
 
-def register(response):
-  registerhtml = loader.load("register.html")
-  response.write(registerhtml)
+def join_game_page(response):
+  join_game_html = loader.load("join_game.html")
+  response.write(join_game_html.generate(username=get_user(response)))
 
-def game(response):
-  gamehtml = loader.load("game.html")
-  response.write(gamehtml.generate(username=get_user(response)))
-
-def lobby(response, roomcode):
+def lobby_page(response, roomcode):
   in_game = player_in_game(response, roomcode)
   print(in_game)
   if in_game:
     lobbyhtml = loader.load("lobby.html")
     response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
   else:
-    response.redirect("/game")
+    response.redirect("/join_game")
 
-def game_page(response, name):
-  response.write("So you like to play " + name + "?")
-
-def add_name_page(response):
-  name = response.get_field("username")
-  db.add_player(name)
-  response.redirect("/")
-
-def login_page(response):
+def login_post(response):
   username = response.get_field("username")
   user_exists = db.user_exists(username)
   if user_exists:
     player_id = db.get_player_id(username)
-    login(response, username, player_id)
+    login_cookies(response, username, player_id)
   else:
     response.redirect("/")
 
-def login(response, username, player_id):
+def login_cookies(response, username, player_id):
   response.set_secure_cookie("username", username) 
   response.set_secure_cookie("player_id", str(player_id))
-  response.redirect("/game")
+  response.redirect("/join_game")
 
-def register_user(response):
+def register_user_post(response):
   username = response.get_field("username")
   if not db.user_exists(username):
     player_id = db.add_player(username)
-    login(response, username, player_id)
+    login_cookies(response, username, player_id)
 
 def get_user(response):
   username = response.get_secure_cookie("username")
   return username
 
-def create_game(response):
+def create_game_post(response):
   code_in_use = True
   while code_in_use:
     #create a roomcode, 
@@ -73,7 +61,7 @@ def create_game(response):
   #add the player to the games_players table for this room redirect to the lobby for the room code
   join_lobby(response, code)
 
-def join_game(response):
+def join_game_post(response):
   code = response.get_field("roomcode")
   join_lobby(response, code)
 
@@ -94,7 +82,7 @@ def join_lobby(response, roomcode):
     #You must either have the wring room code or the game you want has already finished
     print("You must either have the wrong room code or the game you want has already finished")
 
-def start_game(response, roomcode):
+def start_game_post(response, roomcode):
   #If player in game
   if player_in_game(response, roomcode):
   #If game already started go to the game board
@@ -102,7 +90,7 @@ def start_game(response, roomcode):
 
       #Otherwise start game
       #change game state to playing
-      
+
       #assign players randomly to teams and to spymaster
       assign_teams_and_roles(roomcode)
       #choose words for the game
@@ -124,16 +112,34 @@ def player_in_game(response, roomcode):
   in_game = db.player_in_game(player_id, roomcode)
   return in_game
 
+def assign_teams_and_roles(roomcode):
+  players = db.get_game_players(roomcode)
+  random.shuffle(players)
+  colours =  []
+  game_id = db.get_active_game_id(roomcode)
+  for i in len(players):
+    if i < 2:
+      if i % 2 == 0:
+        db.update_game_player(game_id, player_id, "blue", "True")
+      else:
+        db.update_game_player(game_id, player_id, "red", "True")
+    else:
+      if i % 2 == 0:
+        db.update_game_player(game_id, player_id, "blue", "False")
+      else:
+        db.update_game_player(game_id, player_id, "red", "False")
+
 
 server = Server()
 #server.register("/", index, post=add_name_page)
-server.register("/", index)
-server.register("/register", register_user)
-server.register("/login", login_page)
-server.register("/game", game, post=game)
-server.register("/game/create", create_game)
-server.register("/game/join", join_game)
-server.register("/lobby/([a-z]+)", lobby)
+server.register("/", index_page)
+server.register("/register", register_user_post)
+server.register("/login", login_post)
+server.register("/join_game", join_game_page)
+server.register("/game/create", create_game_post)
+server.register("/game/join", join_game_post)
+server.register("/lobby/([a-z]+)", lobby_page)
+server.register("/game/startgame/([a-z]+)", start_game_post)
 
 db.init()
 
