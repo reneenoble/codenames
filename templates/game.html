@@ -2,13 +2,14 @@
 <html>
   <head>
     <title>Codenames - {{ code }}</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/game.css">
   </head>
   <body>
     <h1>Codenames</h1>
-    <ul>
+    <ul class="codewords">
       {% for codename in codenames %}
         {% if player.spymaster %}
-          <li class="colour-{{ codename.colour }} {% if codename.guessed %}uncovered{% else %}covered{% end %}">
+          <li class="codeword colour-{{ codename.colour }} {% if codename.guessed %}uncovered{% else %}covered{% end %}">
             {{ codename.word }}
           </li>
         {% else %}
