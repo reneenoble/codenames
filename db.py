@@ -139,4 +139,6 @@ def player_in_game(player_id, code):
   else:
     return False
 
+def update_game_player(game_id, player_id, team, spymaster):
+  conn.execute("UPDATE game_players SET team = ?, spymaster = ? WHERE game_id = ? AND player_id = ?", (team, spymaster, game_id, player_id))
 
