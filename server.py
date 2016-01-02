@@ -8,6 +8,9 @@ import string
 loader = Loader(".")
 #loader = Loader("./templates")
 
+######################################################################################################
+### HTML Page stuff that uses the templates ###
+
 def index_page(response):
   indexhtml = loader.load("index.html")
   response.write(indexhtml.generate(names=db.get_names()))
@@ -24,6 +27,9 @@ def lobby_page(response, roomcode):
     response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
   else:
     response.redirect("/join_game")
+
+#################################################################################################
+### Stuff for logining in, register, using cookies ###
 
 def login_post(response):
   username = response.get_field("username")
@@ -49,6 +55,12 @@ def get_user(response):
   username = response.get_secure_cookie("username")
   return username
 
+def get_player_id_cookies(response):
+  return int(response.get_secure_cookie("player_id"))
+
+######################################################################################################
+### Stuff for creating and joining a game room ###
+
 def create_game_post(response):
   code_in_use = True
   while code_in_use:
@@ -60,6 +72,9 @@ def create_game_post(response):
   game_id = db.create_game(code)
   #add the player to the games_players table for this room redirect to the lobby for the room code
   join_lobby(response, code)
+
+def randomword(length):
+  return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(length))
 
 def join_game_post(response):
   code = response.get_field("roomcode")
@@ -82,6 +97,9 @@ def join_lobby(response, roomcode):
     #You must either have the wring room code or the game you want has already finished
     print("You must either have the wrong room code or the game you want has already finished")
 
+######################################################################################################
+### Stuff for starting to play the game ###
+
 def start_game_post(response, roomcode):
   #If player in game
   if player_in_game(response, roomcode):
@@ -101,17 +119,6 @@ def start_game_post(response, roomcode):
   else:
     response.redirect("/game")
 
-def randomword(length):
-  return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for i in range(length))
-
-def get_player_id_cookies(response):
-  return int(response.get_secure_cookie("player_id"))
-
-def player_in_game(response, roomcode):
-  player_id = get_player_id_cookies(response)
-  in_game = db.player_in_game(player_id, roomcode)
-  return in_game
-
 def assign_teams_and_roles(roomcode):
   players = db.get_game_players(roomcode)
   random.shuffle(players)
@@ -129,6 +136,14 @@ def assign_teams_and_roles(roomcode):
       else:
         db.update_game_player(game_id, player_id, "red", "False")
 
+#########################################################################
+### General Database checking functions for everywhere ###
+
+def player_in_game(response, roomcode):
+  player_id = get_player_id_cookies(response)
+  in_game = db.player_in_game(player_id, roomcode)
+  return in_game
+
 
 server = Server()
 #server.register("/", index, post=add_name_page)
@@ -140,6 +155,7 @@ server.register("/game/create", create_game_post)
 server.register("/game/join", join_game_post)
 server.register("/lobby/([a-z]+)", lobby_page)
 server.register("/game/startgame/([a-z]+)", start_game_post)
+server.register("/game/([a-z]+)", game_page)
 
 db.init()
 
