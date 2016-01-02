@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Codenames - {{ code }}</title>
+  </head>
+  <body>
+    <h1>Codenames</h1>
+    <ul>
+      {% for codename in codenames %}
+        {% if player.spymaster %}
+          <li class="colour-{{ codename.colour }} {% if codename.guessed %}uncovered{% else %}covered{% end %}">
+            {{ codename.word }}
+          </li>
+        {% else %}
+          <li>{{ codename.word }}</li>
+        {% end %}
+      {% end %}
+    </ul>
+  </body>
+</html>
