@@ -4,6 +4,7 @@ from tornado.template import Loader
 import db
 import random
 import string
+from collections import namedtuple
 
 loader = Loader(".")
 #loader = Loader("./templates")
@@ -64,6 +65,18 @@ def create_game_post(response):
 def join_game_post(response):
   code = response.get_field("roomcode")
   join_lobby(response, code)
+
+def game_page(response, roomcode):
+  words = ['Fishing', 'Half', 'Coach', 'Mop', 'Laugh', 'Nature', 'Brand', 'Sandwich', 'Implode', 'Sip', 'Gallop', 'Unemployed', 'Ditch', 'Engine', 'Fringe', 'Corduroy', 'Knife', 'Candy', 'Stick', 'Sick', 'Lyrics', 'Cook', 'Elephant', 'Campsite', 'Mine']
+  colours = ['red', 'red', 'neutral', 'blue', 'neutral', 'neutral', 'red', 'black', 'blue', 'blue', 'neutral', 'neutral', 'neutral', 'neutral', 'red', 'blue', 'neutral', 'neutral', 'blue', 'neutral', 'blue', 'blue', 'red', 'neutral', 'red']
+  guessed = [False, True, False, False, False, True, False, False, True, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False, False]
+  CodeName = namedtuple('CodeName', 'word colour position guessed')
+  Player = namedtuple('Player', 'name team spymaster')
+  codenames = [CodeName(**{'word': word, 'colour': colour, 'position': position, 'guessed': guess}) for word, colour, position, guess in zip(words, colours, range(25), guessed)]
+  player = Player(name='Test', team='blue', spymaster=True)
+  gamehtml = loader.load("templates/game.html")
+  response.write(gamehtml.generate(code=roomcode, codenames=codenames, player=player))
+  
 
 def join_lobby(response, roomcode):
   #check if room code exists and what it's status is
@@ -139,6 +152,7 @@ server.register("/join_game", join_game_page)
 server.register("/game/create", create_game_post)
 server.register("/game/join", join_game_post)
 server.register("/lobby/([a-z]+)", lobby_page)
+server.register("/game/([a-z]+)", game_page)
 server.register("/game/startgame/([a-z]+)", start_game_post)
 
 db.init()
