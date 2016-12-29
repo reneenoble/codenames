@@ -112,40 +112,36 @@ def join_lobby(response, roomcode):
 ### Stuff for starting to play the game ###
 
 def start_game_post(response, roomcode):
+  game_state = db.get_game_state(roomcode)
   #If player in game
-  if player_in_game(response, roomcode):
-  #If game already started go to the game board
-    if game_started(roomcode):
-
-      #Otherwise start game
+  if player_in_game(response, roomcode) and game_state != "not active":
+    #If game already started go to the game board
+    #Otherwise do start game procedure
+    if game_state == "playing":
+      response.redirect("game/play/" + roomcode)
+    else:
       #change game state to playing
-
+      db.set_game_state_to_finished(roomcode)
       #assign players randomly to teams and to spymaster
       assign_teams_and_roles(roomcode)
       #choose words for the game
+      response.redirect("/game/" + roomcode)
       #redirect to the game board
-    else:
-      response.redirect("game/play/roomcode")
-
+      #response.redirect("game/play/" + roomcode)
   else:
     response.redirect("/game")
 
 def assign_teams_and_roles(roomcode):
-  players = db.get_game_players(roomcode)
-  random.shuffle(players)
-  colours =  []
   game_id = db.get_active_game_id(roomcode)
-  for i in len(players):
-    if i < 2:
-      if i % 2 == 0:
-        db.update_game_player(game_id, player_id, "blue", "True")
-      else:
-        db.update_game_player(game_id, player_id, "red", "True")
-    else:
-      if i % 2 == 0:
-        db.update_game_player(game_id, player_id, "blue", "False")
-      else:
-        db.update_game_player(game_id, player_id, "red", "False")
+
+  players = db.get_game_players(roomcode)
+  player_ids = [db.get_player_id(p) for p in players]
+  random.shuffle(player_ids)
+
+  roles = [(colour, spy) for colour in ["blue", "red"] for spy in [True, False]] 
+
+  for (player_id, (colour, spy_master)) in zip(player_ids, roles):
+    db.update_game_player(game_id, player_id, colour, spy_master)
 
 #########################################################################
 ### General Database checking functions for everywhere ###
@@ -154,7 +150,6 @@ def player_in_game(response, roomcode):
   player_id = get_player_id_cookies(response)
   in_game = db.player_in_game(player_id, roomcode)
   return in_game
-
 
 server = Server()
 #server.register("/", index, post=add_name_page)
