@@ -6,8 +6,7 @@ import random
 import string
 from collections import namedtuple
 
-loader = Loader(".")
-#loader = Loader("./templates")
+loader = Loader("./templates")
 
 ######################################################################################################
 ### HTML Page stuff that uses the templates ###
@@ -89,7 +88,7 @@ def game_page(response, roomcode):
   Player = namedtuple('Player', 'name team spymaster')
   codenames = [CodeName(**{'word': word, 'colour': colour, 'position': position, 'guessed': guess}) for word, colour, position, guess in zip(words, colours, range(25), guessed)]
   player = Player(name='Test', team='blue', spymaster=True)
-  gamehtml = loader.load("templates/game.html")
+  gamehtml = loader.load("game.html")
   response.write(gamehtml.generate(code=roomcode, codenames=codenames, player=player))
   
 
