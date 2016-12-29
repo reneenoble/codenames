@@ -23,7 +23,8 @@ def create_games_table ():
   conn.execute("""CREATE TABLE IF NOT EXISTS games (
     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_code CHAR(4),
-    game_state TEXT
+    game_state TEXT,
+    current_colour TEXT
     )""")
 
 def create_game_players_table():
@@ -86,6 +87,15 @@ def create_game(code):
   game_id = cursor.lastrowid
   return game_id
 
+def get_active_game_id(code):
+  cursor = conn.execute("SELECT game_id FROM games WHERE room_code = ? AND game_state != 'finished'", (code,))
+  game = cursor.fetchone()
+  if game:
+    game_id = game[0]
+    return game_id
+  else:
+    return "not active"
+
 def room_code_in_use(code):
   cursor = conn.execute("SELECT * FROM games WHERE room_code = ? AND game_state != ? ", (code, "finished"))
   games = cursor.fetchall()
@@ -103,20 +113,23 @@ def get_game_state(code):
   else:
     return("not active")
 
-def set_game_state_to_playing(code):
-  cursor = conn.execute("INSERT INTO games (game_state) VALUES ('playing')")
-
-def set_game_state_to_finished(code):
-  cursor = conn.execute("INSERT INTO games (game_state) VALUES ('finished')")
-
-def get_active_game_id(code):
-  cursor = conn.execute("SELECT * FROM games WHERE room_code = ? AND game_state != ? ", (code, "finished"))
-  games = cursor.fetchall()
+def get_game_state_by_id(game_id): 
+  cursor = conn.execute("SELECT game_state FROM games WHERE game_id = ?", (game_id,))
+  games = cursor.fetchone()
   if games:
-    game_id = games[0][0]
-    return game_id
+    state = games[0]
+    return state
   else:
     return None
+
+def set_game_state_to_playing(game_id):
+  cursor = conn.execute("UPDATE games SET game_state = 'playing' WHERE game_id=?", (game_id,))
+
+def set_game_state_to_finished(game_id):
+  cursor = conn.execute("UPDATE games SET game_state = 'finished' WHERE game_id=?", (game_id,))
+
+def set_current_colour(game_id, colour):
+  cursor = conn.execute("UPDATE games SET current_colour = ? WHERE game_id=?", (colour, game_id))
 
 def add_game_player(game_id, player_id):
   conn.execute("INSERT INTO game_players (game_id, player_id) VALUES (?, ?)", (game_id, player_id))
@@ -130,8 +143,7 @@ def get_player_id(username):
   else:
     return None
 
-def get_game_players(code):
-  game_id = get_active_game_id(code)
+def get_game_players(game_id):
   cursor = conn.execute("SELECT * FROM game_players WHERE game_id = ?", (game_id,))
   game_instances = cursor.fetchall()
   game_players = [conn.execute("SELECT * FROM players where player_id = ?", (i[1],)).fetchall()[0][1] for i in game_instances]
@@ -155,3 +167,18 @@ def add_word(word):
 def add_words(words):
   for word in words:
     add_word(word)
+
+def random_words(number):
+  cursor = conn.execute("SELECT * FROM words ORDER BY random() LIMIT ?", (number,))
+  words_tup = cursor.fetchall()
+  return [w[0] for w in words_tup]
+
+
+def add_game_word_pair(game_id, word, colour, number):
+  cursor = conn.execute("INSERT INTO game_words (game_id, word, colour, position, guessed) VALUES (?, ?, ?, ?, ?)", (game_id, word, colour, number, False))
+
+def add_game_word_pairs(game_id, word_colour_pairs):
+  for i, (w, c) in enumerate(word_colour_pairs):
+    add_game_word_pair(game_id, w, c, i)
+    
+  

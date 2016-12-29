@@ -112,7 +112,8 @@ def join_lobby(response, roomcode):
 ### Stuff for starting to play the game ###
 
 def start_game_post(response, roomcode):
-  game_state = db.get_game_state(roomcode)
+  game_id = db.get_active_game_id(roomcode)
+  game_state = db.get_game_state_by_id(game_id)
   #If player in game
   if player_in_game(response, roomcode) and game_state != "not active":
     #If game already started go to the game board
@@ -121,20 +122,29 @@ def start_game_post(response, roomcode):
       response.redirect("game/play/" + roomcode)
     else:
       #change game state to playing
-      db.set_game_state_to_finished(roomcode)
+      db.set_game_state_to_playing(game_id)
       #assign players randomly to teams and to spymaster
-      assign_teams_and_roles(roomcode)
+      assign_teams_and_roles(game_id)
       #choose words for the game
+      words = db.random_words(25)
+      #who goes first?
+      start_colour = random.choice(["blue", "red"])
+      db.set_current_colour(game_id, start_colour)
+      #assign card colours
+      card_colours = [start_colour, "black"] + 7*["neutral"] + 8*["blue", "red"]
+      random.shuffle(card_colours)
+      #pair up words and colours
+      pairs = zip(words, card_colours)
+      db.add_game_word_pairs(game_id, pairs)
+      
+      #Send to game board
       response.redirect("/game/" + roomcode)
-      #redirect to the game board
-      #response.redirect("game/play/" + roomcode)
+
   else:
     response.redirect("/game")
 
-def assign_teams_and_roles(roomcode):
-  game_id = db.get_active_game_id(roomcode)
-
-  players = db.get_game_players(roomcode)
+def assign_teams_and_roles(game_id):
+  players = db.get_game_players(game_id)
   player_ids = [db.get_player_id(p) for p in players]
   random.shuffle(player_ids)
 
