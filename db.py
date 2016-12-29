@@ -19,6 +19,7 @@ def create_players_table():
   )""")
 
 def create_games_table ():
+  #game states: lobby, playing, finished
   conn.execute("""CREATE TABLE IF NOT EXISTS games (
     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_code CHAR(4),
@@ -101,6 +102,12 @@ def get_game_state(code):
     return state
   else:
     return("not active")
+
+def set_game_state_to_playing(code):
+  cursor = conn.execute("INSERT INTO games (game_state) VALUES ('playing')")
+
+def set_game_state_to_finished(code):
+  cursor = conn.execute("INSERT INTO games (game_state) VALUES ('finished')")
 
 def get_active_game_id(code):
   cursor = conn.execute("SELECT * FROM games WHERE room_code = ? AND game_state != ? ", (code, "finished"))
