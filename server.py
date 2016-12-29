@@ -80,12 +80,11 @@ def join_game_post(response):
   join_lobby(response, code)
 
 def game_page(response, roomcode):
-  words = ['Fishing', 'Half', 'Coach', 'Mop', 'Laugh', 'Nature', 'Brand', 'Sandwich', 'Implode', 'Sip', 'Gallop', 'Unemployed', 'Ditch', 'Engine', 'Fringe', 'Corduroy', 'Knife', 'Candy', 'Stick', 'Sick', 'Lyrics', 'Cook', 'Elephant', 'Campsite', 'Mine']
-  colours = ['red', 'red', 'neutral', 'blue', 'neutral', 'neutral', 'red', 'black', 'blue', 'blue', 'neutral', 'neutral', 'neutral', 'neutral', 'red', 'blue', 'neutral', 'neutral', 'blue', 'neutral', 'blue', 'blue', 'red', 'neutral', 'red']
-  guessed = [False, True, False, False, False, True, False, False, True, False, False, False, False, False, False, False, False, False, False, True, False, False, False, False, False]
+  game_id = db.get_active_game_id(roomcode)
+  word_data = db.get_game_words(game_id)
   CodeName = namedtuple('CodeName', 'word colour position guessed')
   Player = namedtuple('Player', 'name team spymaster')
-  codenames = [CodeName(**{'word': word, 'colour': colour, 'position': position, 'guessed': guess}) for word, colour, position, guess in zip(words, colours, range(25), guessed)]
+  codenames = [CodeName(**{'word': word, 'colour': colour, 'position': position, 'guessed': guess}) for word, colour, position, guess in word_data]
   player = Player(name='Test', team='blue', spymaster=True)
   gamehtml = loader.load("game.html")
   response.write(gamehtml.generate(code=roomcode, codenames=codenames, player=player))

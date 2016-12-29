@@ -173,7 +173,6 @@ def random_words(number):
   words_tup = cursor.fetchall()
   return [w[0] for w in words_tup]
 
-
 def add_game_word_pair(game_id, word, colour, number):
   cursor = conn.execute("INSERT INTO game_words (game_id, word, colour, position, guessed) VALUES (?, ?, ?, ?, ?)", (game_id, word, colour, number, False))
 
@@ -181,4 +180,7 @@ def add_game_word_pairs(game_id, word_colour_pairs):
   for i, (w, c) in enumerate(word_colour_pairs):
     add_game_word_pair(game_id, w, c, i)
     
-  
+def get_game_words(game_id):
+  cursor = conn.execute("SELECT word, colour, position, guessed FROM game_words WHERE game_id = ?", (game_id,))
+  word_data = cursor.fetchall()
+  return word_data
