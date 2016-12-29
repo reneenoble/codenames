@@ -142,3 +142,9 @@ def player_in_game(player_id, code):
 def update_game_player(game_id, player_id, team, spymaster):
   conn.execute("UPDATE game_players SET team = ?, spymaster = ? WHERE game_id = ? AND player_id = ?", (team, spymaster, game_id, player_id))
 
+def add_word(word):
+  conn.execute("INSERT INTO words VALUES (?)", (word,))
+
+def add_words(words):
+  for word in words:
+    add_word(word)
