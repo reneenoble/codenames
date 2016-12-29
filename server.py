@@ -21,7 +21,6 @@ def join_game_page(response):
 
 def lobby_page(response, roomcode):
   in_game = player_in_game(response, roomcode)
-  print(in_game)
   if in_game:
     lobbyhtml = loader.load("lobby.html")
     response.write(lobbyhtml.generate(code=roomcode, game_players=db.get_game_players(roomcode)))
