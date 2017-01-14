@@ -9,6 +9,8 @@ def init():
   create_game_players_table()
   create_words_table()
   create_game_words_table()
+  create_turns_table()
+  create_clues_table()
 
 def create_players_table():
   conn.execute("""CREATE TABLE IF NOT EXISTS players (
@@ -54,12 +56,23 @@ def create_game_words_table():
     FOREIGN KEY (word) REFERENCES words(word)
     )""")
 
+def create_turns_table():
+  conn.execute("""CREATE TABLE IF NOT EXISTS turns (
+    turn_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER,
+    remaining_guesses INTEGER,
+    team TEXT,
+    FOREIGN KEY (game_id) REFERENCES games(game_id)
+    )""")
+
 def create_clues_table():
   conn.execute("""CREATE TABLE IF NOT EXISTS clues (
     clue_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id INTEGER,
+    turn_id INTEGER,
     clue TEXT,
+    count INTEGER,
     clue_maker INTEGER,
+    FOREIGN KEY (turn_id) REFERENCES turns(turn_id),
     FOREIGN KEY (clue_maker) REFERENCES players(player_id)
     )""")
 
