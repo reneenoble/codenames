@@ -100,11 +100,11 @@ def join_lobby(response, roomcode):
     db.add_game_player(game_id, player_id)
     #redirect to lobby page
     response.redirect("/lobby/" + roomcode)
-  elif state == "playing":
+  elif state == "playing" or state == "endgame":
     #The game in this room has already started. 
     print("The game in this room has already started. ")
   else:
-    #You must either have the wring room code or the game you want has already finished
+    #You must either have the wrong room code or the game you want has already finished and become historic
     print("You must either have the wrong room code or the game you want has already finished")
 
 ######################################################################################################
@@ -117,7 +117,7 @@ def start_game_post(response, roomcode):
   if player_in_game(response, roomcode) and game_state != "not active":
     #If game already started go to the game board
     #Otherwise do start game procedure
-    if game_state == "playing":
+    if game_state == "playing" or state == "endgame":
       response.redirect("game/play/" + roomcode)
     else:
       #change game state to playing
@@ -129,6 +129,7 @@ def start_game_post(response, roomcode):
       #who goes first?
       start_colour = random.choice(["blue", "red"])
       db.set_current_colour(game_id, start_colour)
+      db.make_turn(game_id, start_colour)
       #assign card colours
       card_colours = [start_colour, "black"] + 7*["neutral"] + 8*["blue", "red"]
       random.shuffle(card_colours)
@@ -151,6 +152,60 @@ def assign_teams_and_roles(game_id):
 
   for (player_id, (colour, spy_master)) in zip(player_ids, roles):
     db.update_game_player(game_id, player_id, colour, spy_master)
+
+#########################################################################
+### Things for playing the game live ###
+
+def guess_word(room_code, player_id, word):
+  #game_id
+  game_id = db.get_active_game_id(room_code)
+  game_state = db.get_game_state_by_id(game_id)
+  if game_state == "playing":
+    #Get player team
+    player_team = db.player_team(game_id, player_id)
+    #Is teams turn?
+    turn = db.get_current_turn(game_id)
+    if turn:
+      turn_id, game_id, remaining_guesses, team = turn
+      if remaining_guesses > 0 and player_team == team:
+        #word changed to guessed
+        colour, guessed_before = db.guess_word(game_id, word)
+        if not guessed_before: 
+          #num guesses reduced
+          if colour == team:
+            #reduce counter by 1
+            db.set_guesses(turn_id, remaining_guesses - 1)
+          elif colour == "black":
+            #reduce counter to 0 and end game
+            db.set_guesses(turn_id, 0)
+            db.set_game_state_to_endgame(game_id)
+            if player_team == "blue":
+              winner = "red"
+            elif player_team == "red":
+              winner = "blue"
+            db.set_winner(game_id, winner)
+          else:
+            #reduce counter to zero
+            db.set_guesses(turn_id, 0)
+
+        winner = get_game_winner(game_id)
+        if winner:
+          db.set_winner(game_id, winner)
+          db.set_game_state_to_endgame(game_id)
+
+def get_game_winner(game_id):
+  game_state = db.get_game_state_by_id(game_id)
+  if game_state == "playing":
+    card_states = db.get_card_states(game_id)
+    blue_win = all(i[1] for i in card_states if i[0] == "blue")
+    red_win = all(i[1] for i in card_states if i[0] == "red")
+
+    if blue_win:
+      return "blue"
+    elif red_win:
+      return "red"
+  
+  
 
 #########################################################################
 ### General Database checking functions for everywhere ###
@@ -176,3 +231,9 @@ server.register("/game/([a-z]+)", game_page)
 db.init()
 
 server.run()
+
+
+# room_code = "erco"
+# player_id = 1
+# word = "file"
+# guess_word(room_code, player_id, word)

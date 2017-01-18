@@ -21,12 +21,13 @@ def create_players_table():
   )""")
 
 def create_games_table ():
-  #game states: lobby, playing, finished
+  #game states: lobby, playing, endgame, historic
   conn.execute("""CREATE TABLE IF NOT EXISTS games (
     game_id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_code CHAR(4),
     game_state TEXT,
     current_colour TEXT
+    winner TEXT
     )""")
 
 def create_game_players_table():
@@ -138,8 +139,11 @@ def get_game_state_by_id(game_id):
 def set_game_state_to_playing(game_id):
   cursor = conn.execute("UPDATE games SET game_state = 'playing' WHERE game_id=?", (game_id,))
 
-def set_game_state_to_finished(game_id):
-  cursor = conn.execute("UPDATE games SET game_state = 'finished' WHERE game_id=?", (game_id,))
+def set_game_state_to_endgame(game_id):
+  cursor = conn.execute("UPDATE games SET game_state = 'endgame' WHERE game_id=?", (game_id,))
+
+def set_game_state_to_historic(game_id):
+  cursor = conn.execute("UPDATE games SET game_state = 'historic' WHERE game_id=?", (game_id,))
 
 def set_current_colour(game_id, colour):
   cursor = conn.execute("UPDATE games SET current_colour = ? WHERE game_id=?", (colour, game_id))
@@ -171,6 +175,12 @@ def player_in_game(player_id, code):
   else:
     return False
 
+def player_team(game_id, player_id):
+  cursor = conn.execute("SELECT team FROM game_players WHERE game_id = ? AND player_id = ?", (game_id, player_id))
+  team_result = cursor.fetchone()
+  if team_result:
+    return team_result[0]
+  
 def update_game_player(game_id, player_id, team, spymaster):
   conn.execute("UPDATE game_players SET team = ?, spymaster = ? WHERE game_id = ? AND player_id = ?", (team, spymaster, game_id, player_id))
 
@@ -197,3 +207,33 @@ def get_game_words(game_id):
   cursor = conn.execute("SELECT word, colour, position, guessed FROM game_words WHERE game_id = ?", (game_id,))
   word_data = cursor.fetchall()
   return word_data
+
+############################################################
+##### Turns section ##############
+def make_turn(game_id, team):
+  cursor = conn.execute("INSERT INTO turns (game_id, team) VALUES (?, ?)", (game_id, team))
+
+def get_current_turn(game_id):
+  cursor = conn.execute("SELECT max(turn_id) FROM turns WHERE game_id = ?", (game_id,))
+  turn_result = cursor.fetchone()
+  print(game_id, turn_result)
+  if turn_result:
+    cursor = conn.execute("SELECT * FROM turns WHERE turn_id = ?", (turn_result[0],))
+    return cursor.fetchone()
+  
+def guess_word(game_id, word):
+  cursor = conn.execute("SELECT colour, guessed FROM game_words WHERE game_id = ? AND word = ?", (game_id, word))
+  conn.execute("UPDATE game_words SET guessed = 1 WHERE game_id = ? AND word = ?", (game_id, word))
+  result = cursor.fetchone()
+  return result
+
+def set_guesses(turn_id, new_guess_num):
+  conn.execute("UPDATE turns SET remaining_guesses = ? WHERE turn_id = ?", (new_guess_num, turn_id))
+  
+def get_card_states(game_id):
+  cursor = conn.execute("SELECT colour, guessed FROM game_words WHERE game_id = ?", (game_id,))
+  return cursor.fetchall()
+
+def set_winner(game_id, winner):
+    conn.execute("UPDATE games SET winner = ? WHERE game_id = ?", (winner, game_id))
+  
