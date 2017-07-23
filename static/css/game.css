@@ -1,45 +1,36 @@
 ul.codewords {
-  list-style-type: none;
+  -webkit-padding-start: 0px;
 }
 
-.codewords {
-  display: flex;
-  flex-wrap: wrap;
+.codeword {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 17%;
+  min-width: 100px;
+  height: 60px;
+  margin: 5px;
+  padding-top: 20px;
+  
+  border-radius: 3px;
 
-  width: 1200px;
+  text-align: center;
+  font-family: sans-serif;
+  font-weight: bold;
+  color: #121212;
+  font-variant: small-caps;
 }
 
-  .codeword {
-    box-sizing: border-box;
+  .codeword.colour-red {
+    background-color: #ca2626;
+  }
 
-    width: 200px;
-    height: 140px;
-    margin: 10px;
-    padding: 50px 0px;
-
-    background-color: #eee;
-
-    font-size: 30px;
-    text-align: center;
+  .codeword.colour-blue {
+    background-color: #2d4b90;
   }
 
   .codeword.colour-neutral {
-    background-color: #dde0dd;
-  }
-
-  .codeword.colour-red {
-    background-color: #e77;
-  }
-  
-  .codeword.colour-blue {
-    background-color: #77e;
   }
 
   .codeword.colour-black {
     color: #eee;
-    background-color: #333;
-  }
-  
-  .codeword.uncovered {
-    opacity: 0.2;
   }
