@@ -117,7 +117,7 @@ def start_game_post(response, roomcode):
   if player_in_game(response, roomcode) and game_state != "not active":
     #If game already started go to the game board
     #Otherwise do start game procedure
-    if game_state == "playing" or state == "endgame":
+    if game_state == "playing" or game_state == "endgame":
       response.redirect("game/play/" + roomcode)
     else:
       #change game state to playing
