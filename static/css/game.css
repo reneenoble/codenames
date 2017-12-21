@@ -29,8 +29,10 @@ ul.codewords {
   }
 
   .codeword.colour-neutral {
+    background-color: #bb9;
   }
 
   .codeword.colour-black {
+    background-color: #222;
     color: #eee;
   }
